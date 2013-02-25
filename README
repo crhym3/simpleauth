@@ -13,6 +13,7 @@ Supported providers out of the box:
   - foursquare (OAuth 2.0)
   - Twitter (OAuth 1.0a)
   - LinkedIn (OAuth 1.0a)
+  - Flickr (OAuth 1.0a)
   - OpenID, using App Engine users module API
 
 Dependencies:
@@ -182,6 +183,18 @@ instead of being redirected back to your site.
 
 Even though Twitter will not give you any error about improper callback URI,
 it'll always use the value set in app's settings page. So, if you have two
+versions, say one on localhost and another on example.org, you'll probably
+want to register two applications (e.g. "dev" and "production") and use 
+appropriate set of key/secret accordingly.
+
+== Flickr
+Docs: http://www.flickr.com/services/api/auth.oauth.html
+Get client/secret: http://www.flickr.com/services/apps/create/apply/
+
+Scopes are not supported. This is OAuth 1.0a.  However, Flickr requires a 'perms' parameter 
+read/write/delete which is set in secrets.py
+
+Callback URL is required when setting up your flickr app.  So, if you have two
 versions, say one on localhost and another on example.org, you'll probably
 want to register two applications (e.g. "dev" and "production") and use 
 appropriate set of key/secret accordingly.
