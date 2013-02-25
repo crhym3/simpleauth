@@ -89,6 +89,10 @@ class SimpleAuthHandler(object):
        'request': 'https://api.twitter.com/oauth/request_token', 
        'auth'   : 'https://api.twitter.com/oauth/authenticate?{0}'
     },            'https://api.twitter.com/oauth/access_token'),
+    'flickr'     : ('oauth1', {
+        'request': 'http://www.flickr.com/services/oauth/request_token',
+        'auth'   : 'http://www.flickr.com/services/oauth/authorize?{0}'
+    },            'http://www.flickr.com/services/oauth/access_token'),
     'foursquare': ('oauth2',
        'https://foursquare.com/oauth2/authenticate?{0}',
        'https://foursquare.com/oauth2/access_token'),
@@ -102,7 +106,8 @@ class SimpleAuthHandler(object):
     'foursquare'  : '_json_parser',
     'facebook'    : '_query_string_parser',
     'linkedin'    : '_query_string_parser',
-    'twitter'     : '_query_string_parser'
+    'twitter'     : '_query_string_parser',
+    'flickr'     : '_query_string_parser'
   }
 
   # Set this to True in your handler if you want to use 
@@ -233,7 +238,7 @@ class SimpleAuthHandler(object):
     
   def _oauth1_init(self, provider, auth_urls):
     """Initiates OAuth 1.0 dance"""
-    key, secret = self._get_consumer_info_for(provider)
+    key, secret, perms = self._get_consumer_info_for(provider)
     callback_url = self._callback_uri_for(provider)
     token_request_url = auth_urls.get('request', None)
     auth_url = auth_urls.get('auth', None)
@@ -252,11 +257,17 @@ class SimpleAuthHandler(object):
     if not request_token.get('oauth_token', None):
       raise AuthProviderResponseError(
         "Couldn't get a request token from %s" % str(request_token), provider)
-      
-    target_url = auth_urls['auth'].format(urlencode({
-      'oauth_token': request_token.get('oauth_token', None),
-      'oauth_callback': callback_url
-    }))
+
+    params = {
+        'oauth_token': request_token.get('oauth_token', None),
+        'oauth_callback': callback_url,
+        'perms': (perms, None)
+    }
+
+    if perms:
+        params.update(perms=perms)
+
+    target_url = auth_urls['auth'].format(urlencode(params))
     
     logging.debug('Redirecting user to %s', target_url)
     
@@ -276,7 +287,7 @@ class SimpleAuthHandler(object):
       raise AuthProviderResponseError(
         "No OAuth verifier was provided", provider)
 
-    consumer_key, consumer_secret = self._get_consumer_info_for(provider)
+    consumer_key, consumer_secret, consumer_perms = self._get_consumer_info_for(provider)
     token = oauth1.Token(request_token['oauth_token'], 
                          request_token['oauth_token_secret'])
     token.set_verifier(verifier)
@@ -448,6 +459,26 @@ class SimpleAuthHandler(object):
     uinfo = json.loads(content)
     uinfo.setdefault('link', 'http://twitter.com/%s' % uinfo['screen_name'])
     return uinfo
+
+  def _get_flickr_user_info(self, auth_info, key=None, secret=None):
+      """Returns a dict of twitter user using
+      https://api.twitter.com/1/account/verify_credentials.json
+      """
+      token = oauth1.Token(key=auth_info['oauth_token'],
+          secret=auth_info['oauth_token_secret'])
+      client = self._oauth1_client(token, key, secret)
+
+      resp, content = client.request(
+          'http://api.flickr.com/services/rest?format=json&nojsoncallback=1&method=flickr.people.getInfo&user_id=%s' % auth_info['user_nsid']
+      )
+      uinfo = json.loads(content)
+      uinfo.setdefault('link', uinfo['person']['profileurl']['_content'])
+      uinfo.setdefault('id', uinfo['person']['id'])
+      uinfo.setdefault('username', uinfo['person']['username']['_content'])
+      uinfo.setdefault('buddy_icon_url', 'http://farm%s.staticflickr.com/%s/buddyicons/%s.jpg'
+                                         % (uinfo['person']['iconfarm'],uinfo['person']['iconserver'], uinfo['person']['id']))
+
+      return uinfo
     
   #
   # aux methods
