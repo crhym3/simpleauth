@@ -27,6 +27,7 @@ import oauth2 as oauth1
 
 # users module is needed for OpenID authentication.
 from google.appengine.api import urlfetch, users
+from google.appengine.ext import ndb
 from webapp2_extras import security
 
 __all__ = ['SimpleAuthHandler',
@@ -195,6 +196,7 @@ class SimpleAuthHandler(object):
 
     self.redirect(target_url)      
     
+  @ndb.synctasklet
   def _oauth2_callback(self, provider, access_token_url):
     """Step 2 of OAuth 2.0, whenever the user accepts or denies access."""
     error = self.request.get('error')
@@ -221,7 +223,7 @@ class SimpleAuthHandler(object):
       'grant_type': 'authorization_code'
     }
     
-    resp = urlfetch.fetch(
+    resp = yield ndb.get_context().urlfetch(
       url=access_token_url, 
       payload=urlencode(payload), 
       method=urlfetch.POST,
@@ -233,7 +235,7 @@ class SimpleAuthHandler(object):
 
     auth_info = _parser(resp.content)
     user_data = _fetcher(auth_info, key=client_id, secret=client_secret)
-    return (user_data, auth_info)
+    raise ndb.Return((user_data, auth_info))
     
   def _oauth1_init(self, provider, auth_urls):
     """Initiates OAuth 1.0 dance"""
@@ -489,12 +491,14 @@ class SimpleAuthHandler(object):
     
     return oauth1.Client(*args)
   
+  @ndb.synctasklet
   def _oauth2_request(self, url, token, token_param='access_token'):
     """Makes an HTTP request with OAuth 2.0 access token using App Engine 
     URLfetch API.
     """
     target_url = url.format(urlencode({token_param:token}))
-    return urlfetch.fetch(target_url).content
+    resp = yield ndb.get_context().urlfetch(target_url)
+    raise ndb.Return(resp.content)
     
   def _query_string_parser(self, body):
     """Parses response body of an access token request query and returns
