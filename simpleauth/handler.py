@@ -462,7 +462,7 @@ class SimpleAuthHandler(object):
     """Facebook Graph API endpoint.
     https://graph.facebook.com/me
     """
-    resp = self._oauth2_request('https://graph.facebook.com/me?{0}',
+    resp = self._oauth2_request('https://graph.facebook.com/me?fields=id,name,email,picture,link&{0} ',
                                 auth_info['access_token'])
     return json.loads(resp)
 
